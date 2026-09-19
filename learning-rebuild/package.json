@@ -1,0 +1,21 @@
+{
+  "name": "learning-rebuild",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rebuild & Migration of LMS SMK Nagara to Modern Architecture",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm --parallel run dev",
+    "lint": "pnpm -r run lint",
+    "db:generate": "pnpm --filter @lms/database db:generate",
+    "db:push": "pnpm --filter @lms/database db:push",
+    "db:migrate": "pnpm --filter @lms/database db:migrate",
+    "db:studio": "pnpm --filter @lms/database db:studio",
+    "etl:run": "pnpm --filter @lms/database etl:run",
+    "etl:dry-run": "pnpm --filter @lms/database etl:dry-run",
+    "etl:verify": "pnpm --filter @lms/database etl:verify"
+  },
+  "keywords": ["lms", "nest", "next", "prisma", "migration"],
+  "author": "SMK Nagara Rebuild Team",
+  "license": "ISC"
+}

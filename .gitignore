@@ -18,3 +18,17 @@ desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# Dependencies & Build artifacts
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+*.log
+.env
+.env.local
+.env.production
+!.env.example
+coverage/
+.prisma/
