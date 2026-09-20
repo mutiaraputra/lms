@@ -2,10 +2,34 @@
 
 > Dokumen ini adalah **rencana migrasi** dari aplikasi LMS PHP lama (folder `learning/`) menuju arsitektur modern **API-first** (Next.js + NestJS + Prisma + PostgreSQL). Dokumen berfokus pada *urutan pekerjaan, strategi migrasi data, risiko, dan cutover* — bukan implementasi kode.
 
-- **Versi dokumen:** 1.0
-- **Tanggal:** 19 September 2026
-- **Status:** Draft untuk persetujuan
+- **Versi dokumen:** 1.1
+- **Tanggal:** 19 September 2026 (status implementasi diperbarui 20 September 2026)
+- **Status:** Disetujui — dalam pelaksanaan
 - **Sumber analisa:** `learning/` (±539 file PHP, ±132.000 baris) dan dump `learning.sql` (25 tabel)
+
+---
+
+## 0. Status Implementasi (Ringkasan)
+
+> Legenda: ✅ Selesai · 🟡 Sebagian · ❌ Belum dikerjakan
+
+| Fase | Status | Catatan singkat |
+|---|---|---|
+| 0 — Fondasi | ✅ Selesai | Monorepo pnpm, Docker Compose (PostgreSQL + Redis + MinIO), env terpisah |
+| 1 — Skema DB + ETL | ✅ Selesai | Prisma schema lengkap 25 tabel + FK; skrip ETL 13 langkah (dedup, pecah CSV, orphan handling, laporan kualitas data) |
+| 2 — Auth & Users | 🟡 Sebagian | Login 3 role + JWT + RBAC guard + rehash SHA1→bcrypt otomatis + konfirmasi/status akun **selesai**; **refresh token belum** ada |
+| 3 — Master Data & Teaching Assignments | 🟡 Sebagian | Endpoint **read-only** master data selesai; CRUD tulis (POST/PUT/DELETE) dan endpoint teaching-assignments **belum** (data sudah dimigrasi via ETL) |
+| 4 — Materi & Perangkat Ajar | 🟡 Sebagian | Materi (list/detail) + tandai-baca selesai; **upload berkas / integrasi MinIO** dan **modul perangkat ajar (teaching-kits)** di API **belum** |
+| 5 — Ujian Objektif | 🟡 Sebagian | Ambil ujian + penilaian otomatis selesai; **timer server-side (WebSocket + Redis)** dan **CRUD bank soal / pembuatan ujian** **belum** |
+| 6 — Ujian Essay & Tugas | ❌ Belum | Model & ETL ada; modul API (controller/service) belum |
+| 7 — Nilai/Laporan & Export | ❌ Belum | Belum dikerjakan |
+| 8 — Chat Real-time | ❌ Belum | Model & ETL `messages` ada; gateway Socket.IO belum |
+| 9 — Hardening, UAT & Cutover | ❌ Belum | Panduan tersedia di `05-panduan-operasional-dan-cutover.md` |
+
+**Modul NestJS yang sudah ada:** `auth`, `users`, `master-data`, `materials`, `exams`.
+**Belum dibuat sebagai modul API:** `teaching-assignments`, `teaching-kits`, `essay-exams`, `assignments`, `grading/reports`, `chat`.
+
+Penanda status ✅/🟡/❌ juga disematkan pada tiap fase di **bagian 6 (Rincian Fase)** di bawah.
 
 ---
 
@@ -154,14 +178,14 @@ Fase 9  Hardening, UAT, Cutover produksi
 
 ## 6. Rincian Fase
 
-### Fase 0 — Persiapan & Fondasi (1–2 minggu)
+### Fase 0 — Persiapan & Fondasi (1–2 minggu) — ✅ SELESAI
 - Setup monorepo (NestJS API + Next.js web + Prisma), Docker Compose (PostgreSQL, Redis, MinIO).
 - CI/CD, linting, format, `.env`/secrets (hapus kredensial hardcoded seperti di `config/db.php`).
 - Environment: `dev`, `staging`, `prod`.
 - Ambil salinan dump `learning.sql` + arsip berkas `vendor/file/` & `vendor/images/`.
 - **DoD:** `docker compose up` menjalankan seluruh stack kosong; pipeline CI hijau.
 
-### Fase 1 — Skema DB Baru + Kerangka ETL (1–2 minggu)
+### Fase 1 — Skema DB Baru + Kerangka ETL (1–2 minggu) — ✅ SELESAI
 - Definisikan Prisma schema ternormalisasi (users + profiles, master data, teaching_assignments, materials, exams/questions/options, attempts/answers, assignments/submissions, messages, school_settings).
 - Tambahkan **foreign key**, index, dan tipe data benar (int untuk id_ujian, `NULL`-able date, dsb.).
 - Bangun kerangka **skrip ETL** (Node/TS) yang membaca dump lama → transform → tulis ke DB baru, dengan:
@@ -169,7 +193,7 @@ Fase 9  Hardening, UAT, Cutover produksi
   - Log validasi (orphan, duplikat, data rusak) → laporan CSV.
 - **DoD:** migrasi Prisma jalan; ETL dry-run menghasilkan laporan kualitas data tanpa menulis.
 
-### Fase 2 — Auth & Users (2 minggu)
+### Fase 2 — Auth & Users (2 minggu) — 🟡 SEBAGIAN
 - Endpoint login untuk 3 role, JWT access+refresh, RBAC guard.
 - **Migrasi data user:** `tb_admin`/`tb_guru`/`tb_siswa` → `users` + profil.
   - Simpan `legacy_password_sha1`.
@@ -177,42 +201,48 @@ Fase 9  Hardening, UAT, Cutover produksi
   - Petakan `status`/`confirm`/`aktif` → kolom status akun terpadu.
   - Jalankan **deduplikasi siswa** + serahkan laporan ke sekolah untuk konfirmasi.
 - **DoD:** semua user existing bisa login dengan password lama; password ter-upgrade otomatis; admin bisa konfirmasi/nonaktifkan akun.
+- **Status:** Login 3 role + JWT + RBAC guard ✅, rehash SHA1→bcrypt saat login pertama ✅, konfirmasi/nonaktif akun oleh admin ✅. **Belum:** refresh token (baru access token).
 
-### Fase 3 — Master Data & Teaching Assignments (1–2 minggu)
+### Fase 3 — Master Data & Teaching Assignments (1–2 minggu) — 🟡 SEBAGIAN
 - CRUD: kelas, jurusan, semester, mapel, jenis ujian/perangkat/tugas.
 - Migrasi `tb_roleguru` → `teaching_assignments` (pivot penting untuk fase berikutnya).
 - **DoD:** jumlah & isi master data identik dengan lama; penugasan guru cocok 1:1.
+- **Status:** Migrasi `tb_roleguru` → `teaching_assignments` via ETL ✅, endpoint **read-only** master data (kelas/jurusan/semester/mapel/sekolah) ✅. **Belum:** CRUD tulis (POST/PUT/DELETE) master data dan endpoint API teaching-assignments.
 
-### Fase 4 — Materi & Perangkat Ajar (1–2 minggu)
+### Fase 4 — Materi & Perangkat Ajar (1–2 minggu) — 🟡 SEBAGIAN
 - Modul materi (teks + berkas) dan perangkat ajar; log baca materi.
 - **Migrasi berkas:** pindahkan `vendor/file/*` ke object storage (MinIO/S3), perbarui path di `materials`/`teaching_kits`.
 - Validasi ekstensi & ukuran di sisi server (menggantikan pengecekan lemah di `models.php`).
 - **DoD:** materi & perangkat lama dapat diunduh; log baca termigrasi.
+- **Status:** Modul materi (list/detail) + tandai-baca ✅, migrasi log baca via ETL ✅. **Belum:** upload berkas + integrasi object storage (MinIO/S3), validasi ekstensi/ukuran sisi server, dan modul perangkat ajar (teaching-kits) di API.
 
-### Fase 5 — Ujian Objektif (3 minggu) — modul paling kompleks
+### Fase 5 — Ujian Objektif (3 minggu) — modul paling kompleks — 🟡 SEBAGIAN
 - Bank soal (`questions` + `question_options`), pengacakan, pembukaan per kelas (`exam_classes`).
 - **Pengerjaan ujian dengan timer server-side** via WebSocket + Redis (memperbaiki bug waktu lokal & `sisa_waktu > 24 jam`).
 - Penilaian otomatis (benar/salah/kosong, skor), analisis per soal.
 - **Migrasi data `nilai` + `analisis`:** pecah CSV `acak_soal`/`jawaban` → `exam_attempts` + `exam_answers`; hitung ulang & bandingkan dengan `jml_benar`/`nilai` lama sebagai validasi.
 - **DoD:** skor hasil migrasi cocok dengan data lama; simulasi ujian serentak (load test) stabil.
+- **Status:** Ambil ujian (kunci jawaban disembunyikan untuk siswa) + penilaian otomatis (benar/salah/kosong, skor) ✅, migrasi `nilai`/`analisis` dengan pemecahan CSV → `exam_attempts`+`exam_answers` via ETL ✅. **Belum:** timer server-side (WebSocket + Redis), CRUD bank soal/pembuatan ujian, dan load test ujian serentak.
 
-### Fase 6 — Ujian Essay & Tugas (2 minggu)
+### Fase 6 — Ujian Essay & Tugas (2 minggu) — ❌ BELUM
 - Ujian essay + penilaian manual guru.
 - Tugas: pembuatan, pembukaan per kelas, pengumpulan berkas siswa, penilaian.
 - Migrasi `ujian_essay`, `tb_tugas`, `kelas_tugas`, `tugas_siswa` (+ berkas ke object storage).
 - **DoD:** guru dapat menilai; submission historis termigrasi & dapat diunduh.
+- **Status:** Model Prisma (`essay_exams`, `assignments`, dst.) + migrasi data via ETL ✅. **Belum:** modul API (controller/service) essay-exams & assignments.
 
-### Fase 7 — Nilai/Laporan & Export (1–2 minggu)
+### Fase 7 — Nilai/Laporan & Export (1–2 minggu) — ❌ BELUM
 - Rekap nilai per kelas/mapel/semester (menggantikan folder `Report/`).
 - Export PDF (rapor/rekap) via Puppeteer/react-pdf.
 - **DoD:** angka laporan cocok dengan perhitungan lama; export PDF benar.
 
-### Fase 8 — Chat Real-time (1 minggu)
+### Fase 8 — Chat Real-time (1 minggu) — ❌ BELUM
 - Pesan real-time (Socket.IO), status dibaca/belum.
 - Migrasi `pesan` dengan resolusi pengirim/penerima ke `users.id`; baris tak-terpetakan diarsip.
 - **DoD:** chat berjalan real-time; riwayat termigrasi sebisa mungkin.
+- **Status:** Model `messages` + migrasi (resolusi pengirim/penerima ke `users.id`) via ETL ✅. **Belum:** gateway Socket.IO & status dibaca real-time.
 
-### Fase 9 — Hardening, UAT & Cutover (2 minggu)
+### Fase 9 — Hardening, UAT & Cutover (2 minggu) — ❌ BELUM
 - Audit keamanan (rate-limit, validasi input menyeluruh, header, CORS, RBAC edge cases).
 - UAT bersama guru/admin/siswa perwakilan.
 - **Cutover** (lihat bagian 9).
