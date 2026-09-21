@@ -25,9 +25,12 @@
 | 7 — Nilai/Laporan & Export | ❌ Belum | Belum dikerjakan |
 | 8 — Chat Real-time | ❌ Belum | Model & ETL `messages` ada; gateway Socket.IO belum |
 | 9 — Hardening, UAT & Cutover | ❌ Belum | Panduan tersedia di `05-panduan-operasional-dan-cutover.md` |
+| A1–A5 — Penggabungan Absensi (lihat `06-penggabungan-absen-ke-platform.md`) | ✅ Selesai (backend) | Modul `attendance`, `leave-requests`, `attendance-reports`, `notifications` (service) + ETL rekonsiliasi absen — lihat `07-laporan-rekonsiliasi-absen.md` |
+| **Frontend Web (Next.js, `apps/web`)** | 🟡 **Sebagian (skeleton awal)** | Baru 2 halaman: **login** (`/`) dan **dashboard generik** (`/dashboard`) yang menampilkan ringkasan read-only (jumlah materi, ujian, kelas, status akun) untuk ketiga role. **Belum ada UI** untuk: detail/CRUD materi, pengerjaan ujian, absensi (scan QR, riwayat), izin (ajuan/approval), rekap & export PDF, manajemen user/master data — walau API-nya sudah tersedia untuk sebagian besar ini. Tidak ada navigasi/sidebar, route group per role, atau halaman error custom. |
 
-**Modul NestJS yang sudah ada:** `auth`, `users`, `master-data`, `materials`, `exams`.
-**Belum dibuat sebagai modul API:** `teaching-assignments`, `teaching-kits`, `essay-exams`, `assignments`, `grading/reports`, `chat`.
+**Modul NestJS yang sudah ada:** `auth`, `users`, `master-data`, `materials`, `exams`, `attendance`, `leave-requests`, `attendance-reports`, `notifications` (tanpa controller, dipakai internal).
+**Belum dibuat sebagai modul API:** `teaching-assignments` (baru endpoint read-only di `master-data`), `teaching-kits`, `essay-exams`, `assignments`, `grading/reports`, `chat`.
+**Web (`apps/web`):** hanya mengonsumsi `auth`, dan sebagian kecil `materials`/`exams`/`users`/`master-data` (classes) — modul `attendance`, `leave-requests`, `attendance-reports` sama sekali belum punya halaman di web meski API-nya sudah jadi.
 
 Penanda status ✅/🟡/❌ juga disematkan pada tiap fase di **bagian 6 (Rincian Fase)** di bawah.
 
