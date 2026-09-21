@@ -15,7 +15,7 @@ export class AuthService {
 
     const cleanIdentifier = identifier.trim();
 
-    // 1. Cari user berdasarkan email, username, atau nis siswa
+    // 1. Cari user berdasarkan email, username, NIS siswa, atau NIK guru
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -23,7 +23,8 @@ export class AuthService {
           { username: `siswa_${cleanIdentifier}` },
           { username: `guru_${cleanIdentifier}` },
           { email: cleanIdentifier.toLowerCase() },
-          { studentProfile: { nis: cleanIdentifier } }
+          { studentProfile: { nis: cleanIdentifier } },
+          { teacherProfile: { nik: cleanIdentifier } }
         ]
       },
       include: {

@@ -22,23 +22,30 @@ enum Gender {
 // 1. AUTENTIKASI & USER
 // -------------------------------------------------------------
 model User {
-  id                 Int             @id @default(autoincrement())
-  username           String          @unique @db.VarChar(100)
-  email              String?         @unique @db.VarChar(150)
-  name               String          @db.VarChar(150)
-  passwordHash       String?         @map("password_hash") @db.VarChar(255)
-  legacyPasswordSha1 String?         @map("legacy_password_sha1") @db.VarChar(255)
+  id                 Int      @id @default(autoincrement())
+  username           String   @unique @db.VarChar(100)
+  email              String?  @unique @db.VarChar(150)
+  name               String   @db.VarChar(150)
+  passwordHash       String?  @map("password_hash") @db.VarChar(255)
+  legacyPasswordSha1 String?  @map("legacy_password_sha1") @db.VarChar(255)
   role               Role
-  avatar             String?         @db.VarChar(255)
-  isActive           Boolean         @default(true) @map("is_active")
-  createdAt          DateTime        @default(now()) @map("created_at")
-  updatedAt          DateTime        @updatedAt @map("updated_at")
+  avatar             String?  @db.VarChar(255)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  teacherProfile     TeacherProfile?
-  studentProfile     StudentProfile?
-  
-  sentMessages       Message[]       @relation("SentMessages")
-  receivedMessages   Message[]       @relation("ReceivedMessages")
+  teacherProfile TeacherProfile?
+  studentProfile StudentProfile?
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  // Absensi (fold-in dari aplikasi absen)
+  attendanceRecords       AttendanceRecord[]
+  teacherSchedules        TeacherSchedule[]
+  leaveRequests           LeaveRequest[]           @relation("LeaveRequester")
+  approvedLeaves          LeaveRequest[]           @relation("LeaveApprover")
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("users")
 }
@@ -78,8 +85,8 @@ model StudentProfile {
   isConfirmed Boolean   @default(true) @map("is_confirmed")
   legacyId    Int?      @unique @map("legacy_id")
 
-  class       Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
-  major       Major?    @relation(fields: [majorId], references: [id], onDelete: SetNull)
+  class Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  major Major? @relation(fields: [majorId], references: [id], onDelete: SetNull)
 
   materialReads         MaterialRead[]
   examAttempts          ExamAttempt[]
@@ -93,12 +100,12 @@ model StudentProfile {
 // 2. MASTER DATA
 // -------------------------------------------------------------
 model SchoolSetting {
-  id          Int     @id @default(autoincrement())
-  schoolName  String  @map("school_name") @db.VarChar(150)
-  principal   String? @map("principal") @db.VarChar(150)
-  logoText    String? @map("logo_text") @db.VarChar(150)
-  logo        String? @db.VarChar(255)
-  copyright   String? @db.VarChar(255)
+  id         Int     @id @default(autoincrement())
+  schoolName String  @map("school_name") @db.VarChar(150)
+  principal  String? @map("principal") @db.VarChar(150)
+  logoText   String? @map("logo_text") @db.VarChar(150)
+  logo       String? @db.VarChar(255)
+  copyright  String? @db.VarChar(255)
 
   @@map("school_settings")
 }
@@ -114,6 +121,7 @@ model Class {
   essayExamClasses    EssayExamClass[]
   assignmentClasses   AssignmentClass[]
   messages            Message[]
+  attendanceRecords   AttendanceRecord[]
 
   @@map("classes")
 }
@@ -129,14 +137,15 @@ model Major {
   essayExamClasses    EssayExamClass[]
   assignmentClasses   AssignmentClass[]
   messages            Message[]
+  attendanceRecords   AttendanceRecord[]
 
   @@map("majors")
 }
 
 model Semester {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(50)
-  isActive  Boolean  @default(true) @map("is_active")
+  id       Int     @id @default(autoincrement())
+  name     String  @db.VarChar(50)
+  isActive Boolean @default(true) @map("is_active")
 
   teachingAssignments TeachingAssignment[]
   exams               Exam[]
@@ -147,8 +156,8 @@ model Semester {
 }
 
 model Subject {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100)
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(100)
 
   teachingAssignments TeachingAssignment[]
   exams               Exam[]
@@ -197,11 +206,11 @@ model TeachingAssignment {
   semesterId Int @map("semester_id")
   majorId    Int @map("major_id")
 
-  teacher    TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  class      Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subject    Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  semester   Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  major      Major          @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  teacher  TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class    Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject  Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  semester Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  major    Major          @relation(fields: [majorId], references: [id], onDelete: Cascade)
 
   materials    Material[]
   teachingKits TeachingKit[]
@@ -225,8 +234,8 @@ model Material {
   isPublic             Boolean  @default(true) @map("is_public")
   createdAt            DateTime @default(now()) @map("created_at")
 
-  teachingAssignment   TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
-  reads                MaterialRead[]
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
+  reads              MaterialRead[]
 
   @@map("materials")
 }
@@ -237,8 +246,8 @@ model MaterialRead {
   studentId  Int      @map("student_id")
   readAt     DateTime @default(now()) @map("read_at")
 
-  material   Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  material Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  student  StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@map("material_reads")
 }
@@ -256,8 +265,8 @@ model TeachingKit {
   isPublished          Boolean  @default(true) @map("is_published")
   createdAt            DateTime @default(now()) @map("created_at")
 
-  teachingAssignment   TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
-  kitType              TeachingKitType    @relation(fields: [kitTypeId], references: [id], onDelete: Cascade)
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Cascade)
+  kitType            TeachingKitType    @relation(fields: [kitTypeId], references: [id], onDelete: Cascade)
 
   @@map("teaching_kits")
 }
@@ -279,15 +288,15 @@ model Exam {
   semesterId      Int      @map("semester_id")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  examType        ExamType       @relation(fields: [examTypeId], references: [id], onDelete: Cascade)
-  teacher         TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject         Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  semester        Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  examType ExamType       @relation(fields: [examTypeId], references: [id], onDelete: Cascade)
+  teacher  TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject  Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  semester Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
 
-  classes         ExamClass[]
-  questions       Question[]
-  attempts        ExamAttempt[]
-  analyses        AnswerAnalysis[]
+  classes   ExamClass[]
+  questions Question[]
+  attempts  ExamAttempt[]
+  analyses  AnswerAnalysis[]
 
   @@map("exams")
 }
@@ -299,9 +308,9 @@ model ExamClass {
   majorId  Int     @map("major_id")
   isActive Boolean @default(true) @map("is_active")
 
-  exam     Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
-  class    Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  major    Major   @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  major Major @relation(fields: [majorId], references: [id], onDelete: Cascade)
 
   @@unique([examId, classId, majorId])
   @@map("exam_classes")
@@ -314,71 +323,71 @@ model Question {
   correctOption Int     @map("correct_option") // 1 sampai 5
   isActive      Boolean @default(true) @map("is_active")
 
-  exam          Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
-  options       QuestionOption[]
-  answers       ExamAnswer[]
-  analyses      AnswerAnalysis[]
+  exam     Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  options  QuestionOption[]
+  answers  ExamAnswer[]
+  analyses AnswerAnalysis[]
 
   @@map("questions")
 }
 
 model QuestionOption {
-  id           Int      @id @default(autoincrement())
-  questionId   Int      @map("question_id")
-  optionNumber Int      @map("option_number") // 1, 2, 3, 4, 5
-  optionText   String   @map("option_text") @db.Text
+  id           Int    @id @default(autoincrement())
+  questionId   Int    @map("question_id")
+  optionNumber Int    @map("option_number") // 1, 2, 3, 4, 5
+  optionText   String @map("option_text") @db.Text
 
-  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([questionId, optionNumber])
   @@map("question_options")
 }
 
 model ExamAttempt {
-  id             Int       @id @default(autoincrement())
-  studentId      Int       @map("student_id")
-  examId         Int       @map("exam_id")
-  remainingTime  String?   @map("remaining_time") @db.VarChar(30)
-  finishedTime   String?   @map("finished_time") @db.VarChar(30)
-  correctCount   Int       @default(0) @map("correct_count")
-  emptyCount     Int       @default(0) @map("empty_count")
-  wrongCount     Int       @default(0) @map("wrong_count")
-  score          Float     @default(0)
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id            Int      @id @default(autoincrement())
+  studentId     Int      @map("student_id")
+  examId        Int      @map("exam_id")
+  remainingTime String?  @map("remaining_time") @db.VarChar(30)
+  finishedTime  String?  @map("finished_time") @db.VarChar(30)
+  correctCount  Int      @default(0) @map("correct_count")
+  emptyCount    Int      @default(0) @map("empty_count")
+  wrongCount    Int      @default(0) @map("wrong_count")
+  score         Float    @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  student        StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  exam           Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
-  answers        ExamAnswer[]
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam    Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answers ExamAnswer[]
 
   @@unique([studentId, examId])
   @@map("exam_attempts")
 }
 
 model ExamAnswer {
-  id             Int      @id @default(autoincrement())
-  attemptId      Int      @map("attempt_id")
-  questionId     Int      @map("question_id")
-  orderIndex     Int      @map("order_index")
-  selectedOption Int      @map("selected_option") // 0 = kosong, 1..5 = pilihan
-  isCorrect      Boolean  @default(false) @map("is_correct")
+  id             Int     @id @default(autoincrement())
+  attemptId      Int     @map("attempt_id")
+  questionId     Int     @map("question_id")
+  orderIndex     Int     @map("order_index")
+  selectedOption Int     @map("selected_option") // 0 = kosong, 1..5 = pilihan
+  isCorrect      Boolean @default(false) @map("is_correct")
 
-  attempt        ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question       Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([attemptId, questionId])
   @@map("exam_answers")
 }
 
 model AnswerAnalysis {
-  id           Int      @id @default(autoincrement())
-  examId       Int      @map("exam_id")
-  questionId   Int      @map("question_id")
-  studentId    Int      @map("student_id")
-  chosenOption Int      @map("chosen_option")
+  id           Int @id @default(autoincrement())
+  examId       Int @map("exam_id")
+  questionId   Int @map("question_id")
+  studentId    Int @map("student_id")
+  chosenOption Int @map("chosen_option")
 
-  exam         Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
-  question     Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam     Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  student  StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@map("answer_analyses")
 }
@@ -398,12 +407,12 @@ model EssayExam {
   semesterId     Int      @map("semester_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  examType       ExamType       @relation(fields: [examTypeId], references: [id], onDelete: Cascade)
-  teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  semester       Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  examType ExamType       @relation(fields: [examTypeId], references: [id], onDelete: Cascade)
+  teacher  TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject  Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  semester Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
 
-  classes        EssayExamClass[]
+  classes EssayExamClass[]
 
   @@map("essay_exams")
 }
@@ -415,9 +424,9 @@ model EssayExamClass {
   majorId     Int     @map("major_id")
   isActive    Boolean @default(true) @map("is_active")
 
-  essayExam   EssayExam @relation(fields: [essayExamId], references: [id], onDelete: Cascade)
-  class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  major       Major     @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  essayExam EssayExam @relation(fields: [essayExamId], references: [id], onDelete: Cascade)
+  class     Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  major     Major     @relation(fields: [majorId], references: [id], onDelete: Cascade)
 
   @@unique([essayExamId, classId, majorId])
   @@map("essay_exam_classes")
@@ -439,13 +448,13 @@ model Assignment {
   semesterId       Int      @map("semester_id")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  assignmentType   AssignmentType @relation(fields: [assignmentTypeId], references: [id], onDelete: Cascade)
-  teacher          TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject          Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  semester         Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  assignmentType AssignmentType @relation(fields: [assignmentTypeId], references: [id], onDelete: Cascade)
+  teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  semester       Semester       @relation(fields: [semesterId], references: [id], onDelete: Cascade)
 
-  classes          AssignmentClass[]
-  submissions      AssignmentSubmission[]
+  classes     AssignmentClass[]
+  submissions AssignmentSubmission[]
 
   @@map("assignments")
 }
@@ -457,9 +466,9 @@ model AssignmentClass {
   majorId      Int     @map("major_id")
   isActive     Boolean @default(true) @map("is_active")
 
-  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  class        Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  major        Major      @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  major      Major      @relation(fields: [majorId], references: [id], onDelete: Cascade)
 
   @@unique([assignmentId, classId, majorId])
   @@map("assignment_classes")
@@ -480,8 +489,8 @@ model AssignmentSubmission {
   feedback     String?  @db.Text
   submittedAt  DateTime @default(now()) @map("submitted_at")
 
-  assignment   Assignment     @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment Assignment     @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@map("assignment_submissions")
 }
@@ -499,10 +508,160 @@ model Message {
   isRead      Boolean  @default(false) @map("is_read")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  recipient   User?    @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
-  class       Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
-  major       Major?   @relation(fields: [majorId], references: [id], onDelete: SetNull)
+  sender    User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User?  @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  class     Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  major     Major? @relation(fields: [majorId], references: [id], onDelete: SetNull)
 
   @@map("messages")
+}
+
+// =============================================================
+// 9. ABSENSI (fold-in dari aplikasi `absen/` — CodeIgniter 3)
+// Menempel ke User / Class / Major yang sudah ada; tidak
+// menduplikasi entitas user/kelas/jurusan/sekolah.
+// =============================================================
+
+enum AttendanceType {
+  MASUK
+  KELUAR
+  TERLAMBAT
+}
+
+enum AttendanceStatus {
+  HADIR
+  TERLAMBAT
+  ALPA
+  IZIN
+  SAKIT
+}
+
+enum AttendanceScope {
+  SISWA
+  GURU
+}
+
+enum LeaveStatus {
+  MENUNGGU
+  DITERIMA
+  DITOLAK
+}
+
+enum HolidayType {
+  WEEKEND
+  OTHER
+}
+
+enum Weekday {
+  SENIN
+  SELASA
+  RABU
+  KAMIS
+  JUMAT
+  SABTU
+  MINGGU
+}
+
+/// Jendela jam absen global (sumber: tabel_jam_absen). Mendefinisikan
+/// rentang waktu untuk MASUK / KELUAR / TERLAMBAT bagi siswa.
+model AttendanceWindow {
+  id        Int             @id @default(autoincrement())
+  type      AttendanceType
+  scope     AttendanceScope @default(SISWA)
+  startTime DateTime        @map("start_time") @db.Time
+  endTime   DateTime        @map("end_time") @db.Time
+  legacyId  Int?            @unique @map("legacy_id")
+
+  @@map("attendance_windows")
+}
+
+/// Jadwal jam absen guru per hari (sumber: tabel_jam_absen_guru).
+model TeacherSchedule {
+  id        Int      @id @default(autoincrement())
+  teacherId Int      @map("teacher_id")
+  weekday   Weekday
+  startTime DateTime @map("start_time") @db.Time
+  endTime   DateTime @map("end_time") @db.Time
+  legacyId  Int?     @unique @map("legacy_id")
+
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@map("teacher_schedules")
+}
+
+/// Catatan kehadiran ternormalisasi: satu baris per orang per hari.
+/// Menyatukan tabel_detail_absen (siswa) & tabel_detail_absen_guru (guru).
+/// Flag int masuk/keluar lama → checkInAt/checkOutAt.
+model AttendanceRecord {
+  id         Int              @id @default(autoincrement())
+  userId     Int              @map("user_id")
+  date       DateTime         @db.Date
+  checkInAt  DateTime?        @map("check_in_at")
+  checkOutAt DateTime?        @map("check_out_at")
+  status     AttendanceStatus @default(HADIR)
+  note       String?          @db.Text
+  classId    Int?             @map("class_id")
+  majorId    Int?             @map("major_id")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  major Major? @relation(fields: [majorId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("attendance_records")
+}
+
+/// Ajuan izin/sakit (sumber: tabel_izin siswa + tabel_izin_guru).
+/// `pemberi_izin` lama diresolusi ke approver (User) bila memungkinkan.
+model LeaveRequest {
+  id           Int         @id @default(autoincrement())
+  userId       Int         @map("user_id")
+  type         String      @db.VarChar(50)
+  reason       String?     @db.VarChar(255)
+  proofUrl     String?     @map("proof_url") @db.VarChar(255)
+  leaveDate    DateTime    @map("leave_date") @db.Date
+  status       LeaveStatus @default(MENUNGGU)
+  approverId   Int?        @map("approver_id")
+  approverName String?     @map("approver_name") @db.VarChar(150)
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  user     User  @relation("LeaveRequester", fields: [userId], references: [id], onDelete: Cascade)
+  approver User? @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([leaveDate])
+  @@map("leave_requests")
+}
+
+/// Hari libur (sumber: tabel_libur). `tanggal` varchar lama → date.
+model Holiday {
+  id          Int         @id @default(autoincrement())
+  type        HolidayType @default(OTHER)
+  date        DateTime    @db.Date
+  description String?     @db.VarChar(150)
+  isActive    Boolean     @default(true) @map("is_active")
+  legacyId    Int?        @unique @map("legacy_id")
+
+  @@index([date])
+  @@map("holidays")
+}
+
+/// Token verifikasi/aktivasi email aman — menggantikan `kode_unik`
+/// (base64 nis=tanggal) yang mudah ditebak di sistem lama.
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  token     String    @unique @db.VarChar(255)
+  purpose   String    @default("EMAIL_VERIFICATION") @db.VarChar(50)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }

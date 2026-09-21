@@ -11,6 +11,8 @@
     "db:studio": "prisma studio",
     "etl:run": "tsx src/etl/run-etl.ts",
     "etl:dry-run": "tsx src/etl/run-etl.ts --dry-run",
+    "etl:absen": "tsx src/etl/run-etl-absen.ts",
+    "etl:absen:dry-run": "tsx src/etl/run-etl-absen.ts --dry-run",
     "etl:verify": "tsx src/etl/verify.ts"
   },
   "dependencies": {
