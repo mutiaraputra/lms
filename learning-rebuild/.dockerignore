@@ -1,0 +1,28 @@
+# Jangan salin artefak host & rahasia ke dalam konteks build Docker.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.log
+
+# Env & rahasia
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# VCS & tooling
+.git
+.gitignore
+.vscode
+.idea
+
+# Dokumen & aset yang tak diperlukan image
+docs
+uploads
+**/*.md
+!apps/**/README.md
+
+# File compose & deploy (di-mount saat runtime, bukan di-bake ke image app)
+docker-compose*.yml

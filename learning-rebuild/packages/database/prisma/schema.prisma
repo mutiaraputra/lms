@@ -46,6 +46,7 @@ model User {
   leaveRequests           LeaveRequest[]           @relation("LeaveRequester")
   approvedLeaves          LeaveRequest[]           @relation("LeaveApprover")
   emailVerificationTokens EmailVerificationToken[]
+  refreshTokens           RefreshToken[]
 
   @@map("users")
 }
@@ -664,4 +665,20 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@map("email_verification_tokens")
+}
+
+/// Refresh token untuk rotasi sesi (Fase 2). Disimpan sebagai hash (sha256)
+/// agar kebocoran tabel tidak langsung memberi token yang dapat dipakai.
+model RefreshToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }

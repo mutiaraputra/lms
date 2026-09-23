@@ -26,7 +26,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@lms/database';
 
-const PROOF_DIR = 'uploads/leave-proofs';
+const UPLOADS_ROOT = process.env.UPLOADS_DIR || 'uploads';
+const PROOF_DIR = `${UPLOADS_ROOT}/leave-proofs`;
 const ALLOWED_EXT = ['.jpg', '.jpeg', '.png'];
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
 

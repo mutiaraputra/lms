@@ -4,9 +4,39 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { prisma } from '@lms/database';
 
+/** Umur refresh token (hari). */
+const REFRESH_TOKEN_TTL_DAYS = 30;
+
 @Injectable()
 export class AuthService {
   constructor(private jwtService: JwtService) {}
+
+  // ----------------------------------------------------------------
+  // Helper refresh token
+  // ----------------------------------------------------------------
+  /** Simpan refresh token sebagai hash sha256 (opaque, bukan JWT). */
+  private hashToken(raw: string): string {
+    return crypto.createHash('sha256').update(raw).digest('hex');
+  }
+
+  /** Terbitkan refresh token baru untuk user; kembalikan nilai mentahnya. */
+  private async issueRefreshToken(userId: number): Promise<string> {
+    const raw = crypto.randomBytes(48).toString('hex');
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+    await prisma.refreshToken.create({
+      data: { userId, tokenHash: this.hashToken(raw), expiresAt },
+    });
+    return raw;
+  }
+
+  private signAccessToken(user: { id: number; username: string; role: string; name: string }): string {
+    return this.jwtService.sign({
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      name: user.name,
+    });
+  }
 
   async login(identifier: string, passwordPlain: string) {
     if (!identifier || !passwordPlain) {
@@ -83,9 +113,11 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
+    const refreshToken = await this.issueRefreshToken(user.id);
 
     return {
       accessToken,
+      refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -97,5 +129,56 @@ export class AuthService {
         studentProfile: user.studentProfile
       }
     };
+  }
+
+  /**
+   * Tukar refresh token dengan access token baru. Menerapkan ROTASI:
+   * token lama dicabut dan token baru diterbitkan (mendeteksi pemakaian ulang).
+   */
+  async refresh(rawToken: string) {
+    if (!rawToken) {
+      throw new BadRequestException('Refresh token wajib diisi');
+    }
+
+    const record = await prisma.refreshToken.findUnique({
+      where: { tokenHash: this.hashToken(rawToken) },
+      include: {
+        user: {
+          include: {
+            teacherProfile: true,
+            studentProfile: { include: { class: true, major: true } },
+          },
+        },
+      },
+    });
+
+    if (!record || record.revokedAt || record.expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('Refresh token tidak valid atau kedaluwarsa');
+    }
+    if (!record.user.isActive) {
+      throw new UnauthorizedException('Akun tidak aktif');
+    }
+
+    // Rotasi: cabut token lama, terbitkan yang baru.
+    await prisma.refreshToken.update({
+      where: { id: record.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const accessToken = this.signAccessToken(record.user);
+    const refreshToken = await this.issueRefreshToken(record.user.id);
+
+    return { accessToken, refreshToken };
+  }
+
+  /** Cabut satu refresh token (logout perangkat ini). Idempoten. */
+  async logout(rawToken: string) {
+    if (rawToken) {
+      await prisma.refreshToken.updateMany({
+        where: { tokenHash: this.hashToken(rawToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { message: 'Logout berhasil' };
   }
 }

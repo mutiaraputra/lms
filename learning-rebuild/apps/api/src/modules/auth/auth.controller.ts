@@ -15,6 +15,20 @@ export class AuthController {
     return this.authService.login(body.identifier, body.password);
   }
 
+  /** Tukar refresh token dengan access token baru (dengan rotasi). */
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() body: { refreshToken: string }) {
+    return this.authService.refresh(body?.refreshToken ?? '');
+  }
+
+  /** Cabut refresh token (logout perangkat ini). */
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Body() body: { refreshToken: string }) {
+    return this.authService.logout(body?.refreshToken ?? '');
+  }
+
   /**
    * Minta tautan verifikasi/aktivasi akun.
    * Menggantikan alur `kode_unik` lama pada aplikasi absen.

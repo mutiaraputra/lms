@@ -1,4 +1,7 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+// Default ke path relatif '/api' agar bekerja di belakang reverse proxy (Nginx)
+// pada deployment server lokal — browser cukup memanggil host yang sama.
+// Untuk dev terpisah, set NEXT_PUBLIC_API_URL (mis. http://localhost:4000/api).
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;

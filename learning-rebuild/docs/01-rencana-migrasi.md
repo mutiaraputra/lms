@@ -17,20 +17,20 @@
 |---|---|---|
 | 0 — Fondasi | ✅ Selesai | Monorepo pnpm, Docker Compose (PostgreSQL + Redis + MinIO), env terpisah |
 | 1 — Skema DB + ETL | ✅ Selesai | Prisma schema lengkap 25 tabel + FK; skrip ETL 13 langkah (dedup, pecah CSV, orphan handling, laporan kualitas data) |
-| 2 — Auth & Users | 🟡 Sebagian | Login 3 role + JWT + RBAC guard + rehash SHA1→bcrypt otomatis + konfirmasi/status akun **selesai**; **refresh token belum** ada |
-| 3 — Master Data & Teaching Assignments | 🟡 Sebagian | Endpoint **read-only** master data selesai; CRUD tulis (POST/PUT/DELETE) dan endpoint teaching-assignments **belum** (data sudah dimigrasi via ETL) |
+| 2 — Auth & Users | ✅ Selesai | Login 3 role + JWT + RBAC guard + rehash SHA1→bcrypt otomatis + konfirmasi/status akun + **refresh token (rotasi + revoke/logout)** — endpoint `POST /auth/refresh` & `POST /auth/logout`, disimpan sbg sha256 hash, TTL 30 hari |
+| 3 — Master Data & Teaching Assignments | ✅ Selesai (API) | Read-only + **CRUD tulis admin** (kelas/jurusan/semester/mapel + jenis ujian/perangkat/tugas + upsert identitas sekolah) & **modul `teaching-assignments`** (CRUD + filter). Sisa opsional: UI web |
 | 4 — Materi & Perangkat Ajar | 🟡 Sebagian | Materi (list/detail) + tandai-baca selesai; **upload berkas / integrasi MinIO** dan **modul perangkat ajar (teaching-kits)** di API **belum** |
 | 5 — Ujian Objektif | 🟡 Sebagian | Ambil ujian + penilaian otomatis selesai; **timer server-side (WebSocket + Redis)** dan **CRUD bank soal / pembuatan ujian** **belum** |
-| 6 — Ujian Essay & Tugas | ❌ Belum | Model & ETL ada; modul API (controller/service) belum |
-| 7 — Nilai/Laporan & Export | ❌ Belum | Belum dikerjakan |
+| 6 — Ujian Essay & Tugas | ✅ Selesai (API) | Modul API **`essay-exams`** (CRUD ujian + pembukaan kelas) & **`assignments`** (CRUD tugas + pembukaan kelas + pengumpulan berkas siswa + penilaian guru score/feedback). Catatan: penilaian essay per-siswa butuh model submission baru (belum di schema) |
+| 7 — Nilai/Laporan & Export | ✅ Selesai (API) | Modul **`reports`**: rekap nilai ujian objektif (dari `ExamAttempt`) & rekap nilai tugas (dari `AssignmentSubmission`), JSON + **export PDF (PDFKit)**. Sisa opsional: rapor gabungan/UI |
 | 8 — Chat Real-time | ❌ Belum | Model & ETL `messages` ada; gateway Socket.IO belum |
 | 9 — Hardening, UAT & Cutover | ❌ Belum | Panduan tersedia di `05-panduan-operasional-dan-cutover.md` |
 | A1–A5 — Penggabungan Absensi (lihat `06-penggabungan-absen-ke-platform.md`) | ✅ Selesai (backend) | Modul `attendance`, `leave-requests`, `attendance-reports`, `notifications` (service) + ETL rekonsiliasi absen — lihat `07-laporan-rekonsiliasi-absen.md` |
 | **Frontend Web (Next.js, `apps/web`)** | 🟡 **Sebagian (skeleton awal)** | Baru 2 halaman: **login** (`/`) dan **dashboard generik** (`/dashboard`) yang menampilkan ringkasan read-only (jumlah materi, ujian, kelas, status akun) untuk ketiga role. **Belum ada UI** untuk: detail/CRUD materi, pengerjaan ujian, absensi (scan QR, riwayat), izin (ajuan/approval), rekap & export PDF, manajemen user/master data — walau API-nya sudah tersedia untuk sebagian besar ini. Tidak ada navigasi/sidebar, route group per role, atau halaman error custom. |
 
-**Modul NestJS yang sudah ada:** `auth`, `users`, `master-data`, `materials`, `exams`, `attendance`, `leave-requests`, `attendance-reports`, `notifications` (tanpa controller, dipakai internal).
-**Belum dibuat sebagai modul API:** `teaching-assignments` (baru endpoint read-only di `master-data`), `teaching-kits`, `essay-exams`, `assignments`, `grading/reports`, `chat`.
-**Web (`apps/web`):** hanya mengonsumsi `auth`, dan sebagian kecil `materials`/`exams`/`users`/`master-data` (classes) — modul `attendance`, `leave-requests`, `attendance-reports` sama sekali belum punya halaman di web meski API-nya sudah jadi.
+**Modul NestJS yang sudah ada:** `auth` (+refresh token), `users`, `master-data` (+CRUD), `teaching-assignments`, `materials`, `exams`, `essay-exams`, `assignments`, `reports`, `attendance`, `leave-requests`, `attendance-reports`, `notifications` (tanpa controller, dipakai internal).
+**Belum dibuat sebagai modul API:** `teaching-kits`, `chat` (Socket.IO). Penyempurnaan tersisa: upload berkas materi/MinIO (Fase 4), timer ujian server-side + CRUD bank soal (Fase 5), penilaian essay per-siswa (butuh model submission baru).
+**Web (`apps/web`):** hanya mengonsumsi `auth`, dan sebagian kecil `materials`/`exams`/`users`/`master-data` (classes) — mayoritas modul API (termasuk yang baru: teaching-assignments, essay-exams, assignments, reports) belum punya halaman di web.
 
 Penanda status ✅/🟡/❌ juga disematkan pada tiap fase di **bagian 6 (Rincian Fase)** di bawah.
 
@@ -196,7 +196,7 @@ Fase 9  Hardening, UAT, Cutover produksi
   - Log validasi (orphan, duplikat, data rusak) → laporan CSV.
 - **DoD:** migrasi Prisma jalan; ETL dry-run menghasilkan laporan kualitas data tanpa menulis.
 
-### Fase 2 — Auth & Users (2 minggu) — 🟡 SEBAGIAN
+### Fase 2 — Auth & Users (2 minggu) — ✅ SELESAI
 - Endpoint login untuk 3 role, JWT access+refresh, RBAC guard.
 - **Migrasi data user:** `tb_admin`/`tb_guru`/`tb_siswa` → `users` + profil.
   - Simpan `legacy_password_sha1`.
@@ -204,13 +204,13 @@ Fase 9  Hardening, UAT, Cutover produksi
   - Petakan `status`/`confirm`/`aktif` → kolom status akun terpadu.
   - Jalankan **deduplikasi siswa** + serahkan laporan ke sekolah untuk konfirmasi.
 - **DoD:** semua user existing bisa login dengan password lama; password ter-upgrade otomatis; admin bisa konfirmasi/nonaktifkan akun.
-- **Status:** Login 3 role + JWT + RBAC guard ✅, rehash SHA1→bcrypt saat login pertama ✅, konfirmasi/nonaktif akun oleh admin ✅. **Belum:** refresh token (baru access token).
+- **Status:** Login 3 role + JWT + RBAC guard ✅, rehash SHA1→bcrypt saat login pertama ✅, konfirmasi/nonaktif akun oleh admin ✅, **refresh token ✅** (opaque token disimpan sbg sha256 hash, TTL 30 hari, endpoint `POST /auth/refresh` dgn rotasi + `POST /auth/logout` revoke). Diuji runtime: login mengembalikan access+refresh, refresh berotasi, token lama/logged-out ditolak 401.
 
-### Fase 3 — Master Data & Teaching Assignments (1–2 minggu) — 🟡 SEBAGIAN
+### Fase 3 — Master Data & Teaching Assignments (1–2 minggu) — ✅ SELESAI (API)
 - CRUD: kelas, jurusan, semester, mapel, jenis ujian/perangkat/tugas.
 - Migrasi `tb_roleguru` → `teaching_assignments` (pivot penting untuk fase berikutnya).
 - **DoD:** jumlah & isi master data identik dengan lama; penugasan guru cocok 1:1.
-- **Status:** Migrasi `tb_roleguru` → `teaching_assignments` via ETL ✅, endpoint **read-only** master data (kelas/jurusan/semester/mapel/sekolah) ✅. **Belum:** CRUD tulis (POST/PUT/DELETE) master data dan endpoint API teaching-assignments.
+- **Status:** Migrasi `tb_roleguru` → `teaching_assignments` via ETL ✅, endpoint **read-only** master data ✅, **CRUD tulis admin** (POST/PUT/DELETE kelas/jurusan/semester/mapel + jenis ujian/perangkat/tugas; upsert identitas sekolah) ✅ (@Roles ADMIN, error unik/FK dipetakan ke 409), **modul API `teaching-assignments`** (CRUD + filter teacherId/classId/semesterId + validasi FK) ✅. Diuji runtime: create/update/delete mapel OK & non-admin ditolak 403. **Sisa opsional:** UI web.
 
 ### Fase 4 — Materi & Perangkat Ajar (1–2 minggu) — 🟡 SEBAGIAN
 - Modul materi (teks + berkas) dan perangkat ajar; log baca materi.
@@ -227,17 +227,18 @@ Fase 9  Hardening, UAT, Cutover produksi
 - **DoD:** skor hasil migrasi cocok dengan data lama; simulasi ujian serentak (load test) stabil.
 - **Status:** Ambil ujian (kunci jawaban disembunyikan untuk siswa) + penilaian otomatis (benar/salah/kosong, skor) ✅, migrasi `nilai`/`analisis` dengan pemecahan CSV → `exam_attempts`+`exam_answers` via ETL ✅. **Belum:** timer server-side (WebSocket + Redis), CRUD bank soal/pembuatan ujian, dan load test ujian serentak.
 
-### Fase 6 — Ujian Essay & Tugas (2 minggu) — ❌ BELUM
+### Fase 6 — Ujian Essay & Tugas (2 minggu) — ✅ SELESAI (API)
 - Ujian essay + penilaian manual guru.
 - Tugas: pembuatan, pembukaan per kelas, pengumpulan berkas siswa, penilaian.
 - Migrasi `ujian_essay`, `tb_tugas`, `kelas_tugas`, `tugas_siswa` (+ berkas ke object storage).
 - **DoD:** guru dapat menilai; submission historis termigrasi & dapat diunduh.
-- **Status:** Model Prisma (`essay_exams`, `assignments`, dst.) + migrasi data via ETL ✅. **Belum:** modul API (controller/service) essay-exams & assignments.
+- **Status:** Model Prisma (`essay_exams`, `assignments`, dst.) + migrasi data via ETL ✅. **Modul API `essay-exams`** (CRUD ujian + pembukaan kelas; siswa difilter per kelas/jurusan) ✅. **Modul API `assignments`** (CRUD tugas + pembukaan kelas + pengumpulan berkas siswa via upload tervalidasi ≤10MB + penilaian guru score 0–100/feedback; satu pengumpulan per siswa, terkunci setelah dinilai) ✅. Diuji runtime: list essay/assignments 200. **Catatan:** penilaian **essay per-siswa** belum tersedia karena schema belum punya tabel pengumpulan jawaban essay (`EssayExamSubmission`) — sengaja tidak dipalsukan, ditandai sebagai penambahan model lanjutan.
 
-### Fase 7 — Nilai/Laporan & Export (1–2 minggu) — ❌ BELUM
+### Fase 7 — Nilai/Laporan & Export (1–2 minggu) — ✅ SELESAI (API)
 - Rekap nilai per kelas/mapel/semester (menggantikan folder `Report/`).
 - Export PDF (rapor/rekap) via Puppeteer/react-pdf.
 - **DoD:** angka laporan cocok dengan perhitungan lama; export PDF benar.
+- **Status:** **Modul API `reports`** ✅ — rekap nilai ujian objektif (`GET /reports/exams/:id/recap` + `.pdf`) dari `ExamAttempt` (benar/salah/kosong/skor + rata2/tertinggi/terendah) & rekap nilai tugas (`GET /reports/assignments/:id/recap` + `.pdf`) dari `AssignmentSubmission`. Export **PDF via PDFKit** (bukan Puppeteer, tanpa headless browser). @Roles(ADMIN, GURU). Diuji runtime: recap JSON exam #32 akurat (23 peserta, rata2 39.42) & PDF valid `%PDF` 200. **Sisa opsional:** rapor gabungan lintas-mapel & UI.
 
 ### Fase 8 — Chat Real-time (1 minggu) — ❌ BELUM
 - Pesan real-time (Socket.IO), status dibaca/belum.
