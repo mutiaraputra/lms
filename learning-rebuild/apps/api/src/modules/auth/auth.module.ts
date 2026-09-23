@@ -6,13 +6,20 @@ import { EmailVerificationService } from './email-verification.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { RolesGuard } from './roles.guard';
+import { getJwtSecret } from '../../config/secrets';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'super_secret_jwt_key_smk_nagara_2026_change_in_production',
-      signOptions: { expiresIn: '7d' },
+    JwtModule.registerAsync({
+      // Factory dievaluasi saat inisialisasi modul → fail-fast bila
+      // JWT_SECRET tidak diset (tanpa fallback hardcoded).
+      useFactory: () => ({
+        secret: getJwtSecret(),
+        // JWT_EXPIRATION mengikuti format `ms` (mis. "7d", "15m"). Cast agar
+        // cocok dengan tipe StringValue milik @nestjs/jwt.
+        signOptions: { expiresIn: (process.env.JWT_EXPIRATION || '7d') as unknown as number },
+      }),
     }),
   ],
   controllers: [AuthController],

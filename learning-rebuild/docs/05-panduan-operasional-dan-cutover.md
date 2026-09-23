@@ -9,9 +9,9 @@
 
 ## 1. Menjalankan Layanan Infrastruktur
 
-### Pilihan A: Layanan Lokal Native (Saat ini aktif)
-- **PostgreSQL 16:** Berjalan pada port `5432` (`lms_user:lms_password@localhost:5432/lms_rebuild`)
-- **Redis 7:** Berjalan pada port `6379`
+### Pilihan A: Layanan Lokal Native
+- **PostgreSQL 16:** port `5432` (mis. `lms_user:lms_password@localhost:5432/lms_rebuild`)
+- **Redis 7:** port `6379` — *opsional*, disiapkan untuk fitur mendatang (timer ujian real-time/BullMQ). API saat ini **tidak** membutuhkan Redis untuk berjalan.
 
 ### Pilihan B: Menggunakan Docker Compose
 ```bash
@@ -61,6 +61,8 @@ Untuk menguji alur login 3 role, auto-rehash legacy password SHA1 -> bcrypt, aks
 cd /home/ubuntu/lms/learning-rebuild/apps/api
 npx tsx test-e2e.ts
 ```
+
+> **Catatan hardening:** endpoint `POST /auth/login` kini dibatasi **10 percobaan/menit/IP** (rate limit). Bila menjalankan uji login berulang secara agresif dari satu mesin, Anda dapat menerima respons **429 Too Many Requests** — tunggu ~1 menit lalu ulangi. Test suite bawaan (4 login) berada jauh di bawah batas ini.
 
 ---
 

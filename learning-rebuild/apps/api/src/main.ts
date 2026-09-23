@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
@@ -13,14 +14,27 @@ async function bootstrap() {
   // Jangan bocorkan header framework.
   app.getHttpAdapter().getInstance().disable('x-powered-by');
 
-  // CORS: default longgar untuk dev; di produksi batasi lewat CORS_ORIGINS
-  // (daftar dipisah koma). Karena web diakses satu-origin via Nginx, umumnya
-  // tidak diperlukan, tetapi tetap dapat dikonfigurasi.
+  // Validasi input global (Fase 9 — hardening). Berlaku untuk endpoint yang
+  // body-nya bertipe kelas DTO (mis. auth). `whitelist` membuang properti tak
+  // dikenal; `transform` mengubah payload menjadi instance DTO + koersi tipe.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidUnknownValues: false,
+    }),
+  );
+
+  // CORS: default TERTUTUP (same-origin) karena web & API diakses satu-origin
+  // via Nginx pada server lokal sekolah. Aktifkan lintas-origin hanya bila
+  // CORS_ORIGINS diisi (mis. untuk aplikasi mobile) — daftar dipisah koma.
   const corsOrigins = (process.env.CORS_ORIGINS || '').trim();
-  app.enableCors({
-    origin: corsOrigins ? corsOrigins.split(',').map((o) => o.trim()) : '*',
-    credentials: true,
-  });
+  if (corsOrigins) {
+    app.enableCors({
+      origin: corsOrigins.split(',').map((o) => o.trim()),
+      credentials: true,
+    });
+  }
 
   app.setGlobalPrefix('api');
 

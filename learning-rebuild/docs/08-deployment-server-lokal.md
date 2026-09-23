@@ -5,7 +5,7 @@
 - **Target:** Windows 10/11 (server sekolah) + WSL2 + Docker Desktop
 - **Akses pengguna:** browser di LAN sekolah → `http://<ip-server>/`
 - **Komponen:** Nginx (port 80) → Web (Next.js) + API (NestJS) → PostgreSQL
-- **Status verifikasi:** build aplikasi (`tsc` API & `next build` web) hijau. Build image Docker perlu dijalankan di server (Docker tidak tersedia di lingkungan penyiapan ini).
+- **Status verifikasi:** build API (`tsc`) hijau; web lolos kompilasi & type-check (`next build` → *Compiled successfully* + *Checking validity of types*, dan `tsc --noEmit` bersih). Catatan: langkah akhir `next build` (`output: standalone`, penyalinan via symlink) **gagal di Windows tanpa hak symlink** (`EPERM`) — ini keterbatasan lingkungan, **bukan** masalah kode; di build Docker (Linux) berjalan normal. Build image Docker tetap perlu dijalankan di server.
 
 ---
 
@@ -162,6 +162,13 @@ Konfirmasi dengan mengetik `RESTORE`. Setelah selesai, restart API bila perlu.
 - [ ] Akun Windows server memiliki password & auto-login hanya bila fisik server aman.
 - [ ] Header keamanan dasar aktif via Nginx (sudah dikonfigurasi).
 
+**Hardening bawaan aplikasi (sudah di kode, otomatis aktif):**
+- Secret **fail-fast**: API menolak start bila `JWT_SECRET`/`QR_SECRET` kosong (tanpa fallback hardcoded).
+- **Rate limiting** (`@nestjs/throttler`): login 10/menit/IP, request-verification 5/menit, default 120/menit; `/api/health` dikecualikan.
+- **Validasi input** global (`ValidationPipe` whitelist+transform) + DTO pada endpoint auth.
+- **CORS** default tertutup (same-origin via Nginx); aktifkan lintas-origin hanya dengan mengisi `CORS_ORIGINS`.
+- Kontainer **API & Web berjalan sebagai user non-root**.
+
 ---
 
 ## 10. Troubleshooting
@@ -195,5 +202,5 @@ Konfirmasi dengan mengetik `RESTORE`. Setelah selesai, restart API bila perlu.
 ## 12. Catatan Penting
 
 - **Storage berkas = disk lokal** (volume `lms_uploads_data`). Tidak memakai MinIO/S3.
-- **Fase yang belum ada** (lihat `docs/01`): timer ujian real-time (WebSocket/Redis), upload materi ke object storage, chat real-time, dan sebagian besar UI web. Deployment ini menyiapkan **fondasi produksi**; modul yang sudah jadi (auth, master-data, materi, ujian objektif, essay, tugas, laporan, absensi) berjalan penuh di backend.
+- **Fase yang belum ada** (lihat `docs/01`): timer ujian real-time (WebSocket/Redis), upload materi ke object storage, chat real-time, dan **sebagian besar UI web** (frontend baru memiliki fondasi — klien API + refresh, konteks auth, AppShell + navigasi peran, RequireAuth, halaman error — di atas halaman login & dashboard; belum ada UI per-fitur). Deployment ini menyiapkan **fondasi produksi**; modul yang sudah jadi (auth, master-data, materi, ujian objektif, essay, tugas, laporan, absensi) berjalan penuh di backend.
 - **Redis belum disertakan** di compose produksi karena fitur yang membutuhkannya (timer ujian real-time) belum diimplementasikan. Tambahkan service `redis` saat fitur tersebut dikerjakan.

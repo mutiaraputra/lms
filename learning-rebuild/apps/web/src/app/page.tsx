@@ -1,39 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_BASE } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { ApiError } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, initializing, login } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Sudah login → langsung ke dashboard.
+  useEffect(() => {
+    if (!initializing && user) {
+      router.replace('/dashboard');
+    }
+  }, [initializing, user, router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Login gagal, periksa identifier dan password.');
+      await login(identifier, password);
+      router.replace('/dashboard');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Terjadi kesalahan saat login. Coba lagi.');
       }
-
-      localStorage.setItem('token', data.accessToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan saat login.');
     } finally {
       setLoading(false);
     }
@@ -41,28 +40,24 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl border border-slate-100">
+      <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-8 shadow-xl">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white font-bold text-2xl shadow-lg shadow-indigo-100 mb-4">
+          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white shadow-lg shadow-indigo-100">
             SN
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            LMS SMK Nagara
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Sistem Informasi Pembelajaran Terpadu Modern
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">LMS SMK Nagara</h1>
+          <p className="mt-1 text-sm text-slate-500">Sistem Informasi Pembelajaran Terpadu Modern</p>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="mb-1 block text-sm font-medium text-slate-700">
               Username / NIK / NIS / Email
             </label>
             <input
@@ -76,9 +71,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Password
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
             <input
               type="password"
               required
@@ -92,7 +85,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-indigo-600 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-100 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 transition"
+            className="w-full rounded-lg bg-indigo-600 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-100 transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
           >
             {loading ? 'Memproses Masuk...' : 'Masuk ke Sistem'}
           </button>

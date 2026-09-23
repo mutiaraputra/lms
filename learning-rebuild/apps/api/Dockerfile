@@ -53,6 +53,16 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY apps/api/docker-entrypoint.sh ./apps/api/docker-entrypoint.sh
 RUN chmod +x ./apps/api/docker-entrypoint.sh
 
+# Jalankan sebagai user non-root (hardening Fase 9). Direktori uploads
+# (di-mount sbg volume /data/uploads) dibuat & dimiliki user ini agar API
+# dapat menulis berkas unggahan. Ownership /app juga dipindah ke user ini.
+RUN addgroup -g 1001 -S nodejs \
+ && adduser -u 1001 -S nodeapp -G nodejs \
+ && mkdir -p /data/uploads \
+ && chown -R nodeapp:nodejs /data/uploads /app
+
+USER nodeapp
+
 WORKDIR /app/apps/api
 EXPOSE 4000
 ENTRYPOINT ["./docker-entrypoint.sh"]

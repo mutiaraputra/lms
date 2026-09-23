@@ -11,6 +11,7 @@ import {
   AttendanceStatus,
   Role,
 } from '@lms/database';
+import { getQrSecret } from '../../config/secrets';
 
 /**
  * Layanan Absensi Inti (Fase A3).
@@ -27,10 +28,7 @@ import {
  */
 @Injectable()
 export class AttendanceService {
-  private readonly qrSecret =
-    process.env.QR_SECRET ||
-    process.env.JWT_SECRET ||
-    'super_secret_qr_key_smk_nagara_2026_change_in_production';
+  private readonly qrSecret = getQrSecret();
 
   private static readonly QR_TTL_MS = 60 * 1000; // payload QR berlaku 60 detik
 

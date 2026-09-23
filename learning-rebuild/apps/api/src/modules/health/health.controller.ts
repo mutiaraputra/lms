@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { prisma } from '@lms/database';
 
 /**
@@ -7,6 +8,7 @@ import { prisma } from '@lms/database';
  * - GET /api/health/ready  → readiness (DB terjangkau)
  * Tidak memerlukan autentikasi.
  */
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   @Get()

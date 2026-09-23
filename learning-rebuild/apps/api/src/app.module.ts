@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { MasterDataModule } from './modules/master-data/master-data.module';
@@ -16,6 +18,16 @@ import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
+    // Rate limiting global (Fase 9 — hardening). Default longgar untuk lalu
+    // lintas normal LAN sekolah; endpoint sensitif (login) diperketat via
+    // @Throttle di controller. Melindungi dari brute force & abuse.
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000, // 1 menit
+        limit: 120, // 120 permintaan/menit/IP untuk endpoint umum
+      },
+    ]),
     AuthModule,
     UsersModule,
     MasterDataModule,
@@ -30,6 +42,10 @@ import { HealthModule } from './modules/health/health.module';
     AttendanceReportsModule,
     NotificationsModule,
     HealthModule,
+  ],
+  providers: [
+    // Aktifkan ThrottlerGuard secara global.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
