@@ -1,8 +1,7 @@
 // =============================================================================
-// Konfigurasi navigasi berbasis peran (Fase 2 — fondasi frontend).
-// Menentukan item sidebar per role. Sebagian rute dibangun di Step 3;
-// item bertanda `ready: false` tampil sebagai "segera hadir" sampai halaman
-// tersedia, agar navigasi tidak menautkan ke halaman kosong.
+// Konfigurasi navigasi berbasis peran (Fase 2 + pembaruan UI lengkap).
+// Menentukan item sidebar per role. Setelah halaman diimplementasikan pada
+// Step 3 (UI konten), semua item siap (`ready: true`) dan dapat diklik.
 // =============================================================================
 
 import type { Role } from './api';
@@ -13,7 +12,6 @@ export interface NavItem {
   /** Ikon inline (emoji) — cukup untuk fondasi; dapat diganti komponen ikon. */
   icon: string;
   roles: Role[];
-  /** false = halaman belum dibuat (Step 3). */
   ready: boolean;
 }
 
@@ -21,20 +19,22 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: '🏠', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
 
   // Pembelajaran
-  { label: 'Materi', href: '/dashboard/materials', icon: '📚', roles: ['ADMIN', 'GURU', 'SISWA'], ready: false },
-  { label: 'Ujian', href: '/dashboard/exams', icon: '📝', roles: ['ADMIN', 'GURU', 'SISWA'], ready: false },
-  { label: 'Tugas', href: '/dashboard/assignments', icon: '🗂️', roles: ['ADMIN', 'GURU', 'SISWA'], ready: false },
+  { label: 'Materi', href: '/dashboard/materials', icon: '📚', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
+  { label: 'Ujian', href: '/dashboard/exams', icon: '📝', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
+  { label: 'Ujian Essay', href: '/dashboard/essay-exams', icon: '📄', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
+  { label: 'Tugas', href: '/dashboard/assignments', icon: '🗂️', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
 
   // Kehadiran
-  { label: 'Absensi', href: '/dashboard/attendance', icon: '📅', roles: ['ADMIN', 'GURU', 'SISWA'], ready: false },
-  { label: 'Izin', href: '/dashboard/leave', icon: '✉️', roles: ['ADMIN', 'GURU', 'SISWA'], ready: false },
+  { label: 'Absensi', href: '/dashboard/attendance', icon: '📅', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
+  { label: 'Izin', href: '/dashboard/leave', icon: '✉️', roles: ['ADMIN', 'GURU', 'SISWA'], ready: true },
 
   // Penilaian & laporan (guru/admin)
-  { label: 'Rekap Nilai', href: '/dashboard/reports', icon: '📊', roles: ['ADMIN', 'GURU'], ready: false },
+  { label: 'Rekap Nilai', href: '/dashboard/reports', icon: '📊', roles: ['ADMIN', 'GURU'], ready: true },
+  { label: 'Rekap Absensi', href: '/dashboard/attendance-reports', icon: '📈', roles: ['ADMIN'], ready: true },
 
   // Administrasi (admin)
-  { label: 'Pengguna', href: '/dashboard/users', icon: '👥', roles: ['ADMIN'], ready: false },
-  { label: 'Data Master', href: '/dashboard/master', icon: '⚙️', roles: ['ADMIN'], ready: false },
+  { label: 'Pengguna', href: '/dashboard/users', icon: '👥', roles: ['ADMIN'], ready: true },
+  { label: 'Data Master', href: '/dashboard/master', icon: '⚙️', roles: ['ADMIN'], ready: true },
 ];
 
 /** Item navigasi yang boleh dilihat sebuah role. */
