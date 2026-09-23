@@ -22,6 +22,7 @@ import {
 import { DataTable } from '@/components/ui/Table';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
+import { QrScanner } from '@/components/QrScanner';
 
 interface MyQr {
   payload: string;
@@ -68,6 +69,8 @@ export default function AttendancePage() {
   const [scanBusy, setScanBusy] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanError, setScanError] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scannedPayload, setScannedPayload] = useState('');
 
   // Daily (admin)
   const [dailyDate, setDailyDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -135,20 +138,37 @@ export default function AttendancePage() {
     }
   };
 
-  const doScan = async () => {
-    if (!scanPayload) return;
+  const doScan = async (overridePayload?: string) => {
+    const payload = (overridePayload ?? scanPayload).trim();
+    if (!payload) return;
     setScanBusy(true);
     setScanError('');
     setScanResult(null);
+    // Selalu hentikan kamera setelah pemindaian (apapun hasilnya) agar tidak
+    // terjadi pemindaian ganda untuk QR yang sama.
+    setCameraActive(false);
     try {
-      const data = await apiPost('/attendance/scan', { qr: scanPayload, type: scanType });
+      const data = await apiPost('/attendance/scan', { qr: payload, type: scanType });
       setScanResult(data);
       setScanPayload('');
+      setScannedPayload('');
     } catch (err) {
       setScanError(err instanceof ApiError ? err.message : 'Gagal memindai.');
+      setScannedPayload('');
     } finally {
       setScanBusy(false);
     }
+  };
+
+  /** Dipanggil saat kamera berhasil memindai sebuah QR. */
+  const handleCameraDecode = (text: string) => {
+    setScannedPayload(text);
+    // Panggil API segera — scanner akan otomatis dihentikan di dalam doScan().
+    doScan(text);
+  };
+
+  const handleCameraError = (msg: string) => {
+    setScanError(msg);
   };
 
   const tabs = useMemo(() => {
@@ -283,62 +303,129 @@ export default function AttendancePage() {
       )}
 
       {tab === 'scan' && user?.role === 'ADMIN' && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-slate-700">Pemindai QR (Mode Operator)</h2>
-          </CardHeader>
-          <CardBody>
-            <p className="mb-4 text-xs text-slate-500">
-              Pemindai kamera otomatis belum diaktifkan. Tempelkan payload QR yang diterima dari pengguna untuk
-              melakukan absen MASUK atau KELUAR.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <div className="sm:col-span-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <div className="lg:col-span-3">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-slate-700">Kamera Pemindai</h2>
+                  <Badge tone={cameraActive ? 'emerald' : 'slate'}>
+                    {cameraActive ? 'Aktif' : 'Non-aktif'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardBody>
+                <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-slate-700">Jenis Absen</label>
+                    <div className="inline-flex rounded-lg bg-slate-100 p-1">
+                      {(['MASUK', 'KELUAR'] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setScanType(t)}
+                          className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                            scanType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    {!cameraActive ? (
+                      <Button onClick={() => setCameraActive(true)} className="w-full">
+                        📷 Buka Kamera
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setCameraActive(false)}
+                        className="w-full"
+                      >
+                        ⏹ Tutup Kamera
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {cameraActive ? (
+                  <QrScanner
+                    active={cameraActive && !scanBusy}
+                    onDecode={handleCameraDecode}
+                    onError={handleCameraError}
+                    onStop={() => setCameraActive(false)}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                    <div className="mb-2 text-4xl">📷</div>
+                    <p className="text-sm font-semibold text-slate-700">Kamera belum diaktifkan</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Tekan "Buka Kamera" untuk mulai memindai QR pengguna. Pemindaian otomatis memicu pencatatan
+                      absen tipe <b>{scanType}</b>.
+                    </p>
+                    {scannedPayload && (
+                      <p className="mt-3 inline-block rounded bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-600">
+                        Terakhir dipindai: {scannedPayload.slice(0, 28)}…
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {scanError && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {scanError}
+                  </p>
+                )}
+                {scanResult && (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                    ✅ Tercatat untuk <b>{scanResult?.user?.name || scanResult?.record?.user?.name || 'pengguna'}</b>
+                    {scanResult?.record && (
+                      <>
+                        {' '}
+                        • {formatDateTime(scanResult.record.checkInAt || scanResult.record.checkOutAt)}
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-semibold text-slate-700">Input Manual (Fallback)</h2>
+              </CardHeader>
+              <CardBody>
+                <p className="mb-3 text-xs text-slate-500">
+                  Jika kamera tidak tersedia, tempel payload QR yang diterima dari pengguna.
+                </p>
                 <label className="mb-1 block text-xs font-medium text-slate-700">Payload QR</label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={scanPayload}
                   onChange={(e) => setScanPayload(e.target.value)}
                   placeholder="Tempel payload bertanda base64url."
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700">Jenis</label>
-                <select
-                  value={scanType}
-                  onChange={(e) => setScanType(e.target.value as any)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="MASUK">MASUK</option>
-                  <option value="KELUAR">KELUAR</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={doScan} disabled={scanBusy || !scanPayload} className="w-full">
-                  {scanBusy ? <Spinner size="sm" /> : 'Catat Absen'}
-                </Button>
-              </div>
-            </div>
-
-            {scanError && (
-              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {scanError}
-              </p>
-            )}
-            {scanResult && (
-              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                ✅ Tercatat untuk <b>{scanResult?.user?.name || scanResult?.record?.user?.name || 'pengguna'}</b>
-                {scanResult?.record && (
-                  <>
-                    {' '}
-                    • {formatDateTime(scanResult.record.checkInAt || scanResult.record.checkOutAt)}
-                  </>
-                )}
-              </div>
-            )}
-          </CardBody>
-        </Card>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <select
+                    value={scanType}
+                    onChange={(e) => setScanType(e.target.value as any)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="MASUK">MASUK</option>
+                    <option value="KELUAR">KELUAR</option>
+                  </select>
+                  <Button onClick={() => doScan()} disabled={scanBusy || !scanPayload} className="w-full">
+                    {scanBusy ? <Spinner size="sm" /> : 'Catat Absen'}
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </div>
       )}
 
       {tab === 'daily' && user?.role === 'ADMIN' && (

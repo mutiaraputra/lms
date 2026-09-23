@@ -3,7 +3,7 @@
 > Dokumen ini mendefinisikan struktur monorepo, konfigurasi Docker Compose, environment variable, alur komunikasi antar service, dan tahapan scaffolding proyek.
 
 - **Status:** Finalisasi untuk Implementasi
-- **Tanggal:** 19 September 2026 (struktur diselaraskan dengan kode 23 September 2026: daftar modul API aktual, lapisan hardening, fondasi `apps/web`)
+- **Tanggal:** 23 September 2026 (struktur diselaraskan dengan kode: UI konten web Fase 3, 4, 5, 6, 7, A3, A4, A5 & pemindai kamera QR sudah terimplementasikan)
 
 ---
 
@@ -21,7 +21,12 @@ learning-rebuild/
 ├── docs/
 │   ├── 01-rencana-migrasi.md
 │   ├── 02-pemetaan-skema-database.md
-│   └── 03-arsitektur-dan-scaffolding.md
+│   ├── 03-arsitektur-dan-scaffolding.md
+│   ├── 04-laporan-kualitas-data.md
+│   ├── 05-panduan-operasional-dan-cutover.md
+│   ├── 06-penggabungan-absen-ke-platform.md
+│   ├── 07-laporan-rekonsiliasi-absen.md
+│   └── 08-deployment-server-lokal.md
 ├── packages/
 │   └── database/
 │       ├── package.json
@@ -32,7 +37,8 @@ learning-rebuild/
 │           ├── index.ts
 │           └── etl/
 │               ├── db-source.ts
-│               ├── run-etl.ts
+│               ├── run-etl.ts            # ETL LMS
+│               ├── run-etl-absen.ts      # ETL rekonsiliasi absensi (Fase A1)
 │               └── verify.ts
 └── apps/
     ├── api/           # Backend NestJS
@@ -61,22 +67,35 @@ learning-rebuild/
     │   │       ├── notifications/  # service internal (tanpa controller)
     │   │       └── health/         # liveness/readiness (dikecualikan throttle)
     └── web/           # Frontend Next.js 15
-        ├── package.json
+        ├── package.json                 # + html5-qrcode
         ├── tsconfig.json
-        ├── Dockerfile            # image Web (standalone, non-root)
+        ├── Dockerfile                   # image Web (standalone, non-root)
         └── src/
             ├── app/
-            │   ├── layout.tsx          # membungkus AuthProvider
-            │   ├── page.tsx            # login
+            │   ├── layout.tsx           # membungkus AuthProvider
+            │   ├── page.tsx             # login
             │   ├── error.tsx / not-found.tsx / loading.tsx
-            │   └── (dashboard)/        # route group terproteksi
-            │       ├── layout.tsx      # RequireAuth + AppShell
-            │       └── dashboard/page.tsx
-            ├── components/             # AppShell, RequireAuth
-            └── lib/                    # api.ts (klien+refresh), auth.tsx, nav.ts
+            │   └── (dashboard)/         # route group terproteksi
+            │       ├── layout.tsx       # RequireAuth + AppShell
+            │       ├── dashboard/page.tsx        # ringkasan per peran
+            │       ├── materials/{page,[id]/page}.tsx
+            │       ├── exams/{page,[id]/page}.tsx
+            │       ├── essay-exams/{page,[id]/page}.tsx
+            │       ├── assignments/{page,[id]/page}.tsx
+            │       ├── reports/page.tsx
+            │       ├── attendance-reports/page.tsx
+            │       ├── attendance/page.tsx
+            │       ├── leave/page.tsx
+            │       ├── master/page.tsx
+            │       └── users/page.tsx
+            ├── components/              # AppShell, RequireAuth, QrScanner
+            │   └── ui/                  # Card(+Header/Body/PageHeader/EmptyState), Badge, Button, Spinner/PageLoader, Modal, DataTable
+            └── lib/                     # api.ts, api-files.ts, auth.tsx, nav.ts, format.ts
 ```
 
-> **Catatan:** `chat/` (Socket.IO) dan `teaching-kits/` **belum** dibuat sebagai modul API — lihat status di `docs/01`.
+> **Catatan:** `chat/` (Socket.IO), `teaching-kits/`, dan pengelolaan konfigurasi absensi (`AttendanceWindow`/`Holiday`/`TeacherSchedule`) **belum** dibuat sebagai modul API — lihat status di `docs/01`. Tabel absensi tersebut sudah ada di `schema.prisma` dan terisi via ETL, tetapi belum punya controller/endpoint maupun UI.
+>
+> **Catatan (kesesuaian kode ↔ dokumen, 23 September 2026):** struktur di atas sudah dicocokkan dengan isi repo. Yang **belum** ada dan tidak digambarkan di poin mana pun: konfigurasi **CI/CD** (`.github/workflows/`), **ESLint/Prettier** dan script `lint` per-paket, serta **test otomatis** (baru ada `apps/api/test-e2e.ts` sebagai skrip manual, bukan test runner).
 
 ---
 

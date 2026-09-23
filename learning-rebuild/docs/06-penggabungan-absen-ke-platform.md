@@ -2,9 +2,9 @@
 
 > Dokumen ini menjawab: **"Mungkinkah `learning/` (LMS) dan `absen/` (Absensi) dijadikan satu aplikasi?"** — Jawaban: **Ya, dan direkomendasikan.** Alih-alih membangun `absen-rebuild/` terpisah, modul absensi **dilipat masuk (fold-in)** ke monorepo `learning-rebuild/` yang sudah ada, menjadi satu **Platform Sekolah SMK Nagara** dengan satu database, satu autentikasi (SSO), dan master data bersama.
 
-- **Versi dokumen:** 1.0
-- **Tanggal:** 20 September 2026
-- **Status:** Draf untuk persetujuan
+- **Versi dokumen:** 1.1
+- **Tanggal:** 23 September 2026 (status implementasi diperbarui — UI halaman absensi & perizinan sudah terimplementasikan)
+- **Status:** Diterapkan (backend ✅ + UI Absensi/Izin ✅). **Belum:** pengelolaan jam absen & hari libur (tabel ada, modul API + UI belum)
 - **Prasyarat:** `01-rencana-migrasi.md` (LMS) & rencana migrasi absensi. Dokumen ini menggantikan kebutuhan akan repo `absen-rebuild/` terpisah.
 
 ---
@@ -31,7 +31,8 @@ Artinya, absensi **tidak membawa tabel user/kelas/jurusan/sekolah sendiri**; ia 
 ### Manfaat konkret
 1. **Single Sign-On** — guru/siswa cukup satu akun untuk LMS dan absensi (menghapus 3 login absen + 1 login LMS = 4 kredensial menjadi 1).
 2. **Master data tunggal** — kelas, jurusan, dan profil siswa/guru tidak lagi terduplikasi & tidak bisa "beda data".
-3. **Satu deployment & satu tim** — satu Docker Compose, satu pipeline CI/CD, satu basis kode TypeScript.
+3. **Satu deployment & satu tim** — satu Docker Compose, satu pipeline CI/CD*, satu basis kode TypeScript.
+   *\*Catatan: pipeline CI/CD **belum dibuat**; saat ini deploy dijalankan manual lewat `deploy/scripts/` (lihat `docs/08`).*
 4. **Data terhubung** — memungkinkan fitur silang (mis. kehadiran memengaruhi akses ujian, rekap terpadu) di masa depan.
 
 ---
@@ -47,7 +48,7 @@ learning-rebuild/                (→ opsional rename: sekolah-platform/)
 │   │   └── src/modules/
 │   │       ├── auth/            ← DIPAKAI BERSAMA (login SSO 3 peran)
 │   │       ├── users/           ← DIPAKAI BERSAMA
-│   │       ├── master-data/     ← DIPAKAI BERSAMA (+ jam absen, hari libur)
+│   │       ├── master-data/     ← DIPAKAI BERSAMA (+ jam absen, hari libur)†
 │   │       ├── materials/       ┐
 │   │       ├── exams/           │  domain LMS (sudah ada)
 │   │       ├── assignments/     │
@@ -66,6 +67,12 @@ learning-rebuild/                (→ opsional rename: sekolah-platform/)
 ```
 
 **Navigasi tunggal berbasis peran (RBAC):** satu app-shell dengan menu yang menampilkan modul LMS dan Absensi sesuai peran user. Menu dinamis lama absen (`user_menu`/`user_access_menu`, dsb.) **tidak dimigrasi** — digantikan RBAC guard di API + policy menu di frontend.
+
+> **Kesesuaian dengan kode (23 September 2026):** struktur di atas adalah **target**. Perbedaan yang ada saat ini:
+> - `†` Modul pengelolaan **jam absen & hari libur belum dibuat** (tabel `AttendanceWindow`/`Holiday`/`TeacherSchedule` ada + terisi via ETL, tetapi tanpa controller; belum ada di `master-data`).
+> - Modul `chat/` **belum dibuat** (Socket.IO belum ada); `exams/`, `materials/`, `assignments/` sudah ada.
+> - Web **tidak** memakai route group `(lms)`/`(absensi)` terpisah, melainkan satu route group `(dashboard)` dengan rute datar (`/dashboard/attendance`, `/dashboard/leave`, `/dashboard/materials`, dst.) dan menu difilter per peran lewat `lib/nav.ts`.
+> - Nama folder tetap `learning-rebuild/` (rename ke `sekolah-platform/` belum dilakukan).
 
 ---
 
@@ -167,7 +174,19 @@ Aturan penting: langkah "Enrich Absen" **tidak boleh** menduplikasi user yang su
 ### Web (Next.js)
 - Satu app-shell, dua area: **LMS** dan **Absensi**, dipisah lewat route group dan menu berbasis peran.
 - Halaman scan QR memakai kamera browser (`html5-qrcode`/`@yudiel/react-qr-scanner`) menggantikan `instascan`/`qr-scanner` lama.
-- Halaman: scan (operator), riwayat kehadiran (siswa/guru), ajuan & persetujuan izin, pengaturan jam & hari libur, rekap + export PDF.
+- Halaman: scan (operator), riwayat kehadiran (siswa/guru), ajuan & persetujuan izin, rekap + export PDF — **sudah terimplementasi** (lihat tabel status di bawah).
+- Halaman **pengaturan jam absen & hari libur** — **belum terimplementasi**. Tabel `AttendanceWindow` (jam masuk/keluar), `Holiday` (hari libur), dan `TeacherSchedule` (jadwal guru) sudah ada di schema dan terisi via ETL, tetapi **belum ada modul/controller API** maupun halaman web-nya; saat ini hanya dapat diubah langsung di database.
+
+#### Status implementasi UI — diverifikasi 23 September 2026
+
+> Build `next build` pada `apps/web` lolos 15 route. Halaman-halaman UI berikut sudah terimplementasi dan fungsional terhadap API:
+
+| Area | Halaman | Keterangan |
+|---|---|---|
+| Absensi | `/dashboard/attendance` | Tab "QR & Riwayat Saya" — QR pribadi + countdown TTL + tabel riwayat (filter tanggal dari/sampai); tab "Pemindai (Operator)" admin — **pemindai kamera via `html5-qrcode`** (kamera belakang `facingMode: 'environment'`, region 260×260, 10 fps) dengan tombol Buka/Tutup + panel fallback "Input Manual" (tempel payload + jenis absen); tab "Daftar Harian" admin — filter tanggal + kelas, tabel per siswa (Masuk/Keluar/Status) |
+| Absensi | `/dashboard/leave` | Form ajuan izin (jenis IZIN/SAKIT/CUTI/DINAS LUAR + tanggal + alasan + upload bukti jpg/png ≤2MB); pesan status; tab "Ajuan Saya" untuk semua peran (tabel + modal detail); tab "Semua Ajuan (Admin)" dengan filter status (Semua/Menunggu/Diterima/Ditolak) + tombol Setujui/Tolak pada ajuan MENUNGGU |
+
+**Komponen UI bersama** di `apps/web/src/components/ui/`: `Card`/`CardHeader`/`CardBody`, `Badge`, `Button` (primary/secondary/ghost/danger), `Spinner`/`PageLoader`, `EmptyState`, `PageHeader`, `Modal`, `DataTable`. Komponen khusus absensi: `components/QrScanner.tsx` (membungkus `html5-qrcode`, mount/unmount stream kamera bersih). Util: `lib/format.ts` (id-ID), `lib/api-files.ts` (`downloadFile()` untuk Blob + `Content-Disposition`).
 
 ---
 
